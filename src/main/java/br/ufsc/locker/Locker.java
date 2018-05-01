@@ -1,7 +1,6 @@
 package br.ufsc.locker;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.commons.io.FileUtils;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.bouncycastle.crypto.engines.AESEngine;
 import org.bouncycastle.crypto.modes.GCMBlockCipher;
@@ -17,7 +16,6 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.security.Security;
@@ -30,11 +28,9 @@ import java.util.List;
 public class Locker {
 
     private static final int MAC_SIZE = 128;
-    public static final int GCM_NONCE_LENGTH = 12; // in bytes
     public static final byte[] SALT = "FaculdadeUniversity".getBytes();
-
+    public static final byte[] NONCE = "SegurancaRedes".getBytes();
     private static final ObjectMapper mapper = new ObjectMapper();
-
 
     private File file;
     private String password;
@@ -63,12 +59,10 @@ public class Locker {
 
             if (lockerFile.length() > 0) {
                 byte[] inputBytes = Files.readAllBytes(lockerFile.toPath());
-
                 byte[] keyFile = Files.readAllBytes(lockerKey.toPath());
                 String keyPlain = new String(keyFile, Charset.forName("UTF-8"));
-                System.out.println(keyPlain);
                 String input = new String(inputBytes, Charset.forName("UTF-8"));
-                String decrypt = this.decrypt(keyPlain, input);
+                String decrypt = this.decryptLocker(keyPlain, input);
 
                 List<Content> contentsAux = Arrays.asList(mapper.readValue(decrypt, Content[].class));
                 contents.addAll(contentsAux);
@@ -82,8 +76,6 @@ public class Locker {
         System.out.println("Add " + file.getName() + " " + password);
         Content c = new Content(file.getName(), password);
         contents.add(encryptContent(c));
-        writeToLocker();
-
         close();
     }
 
@@ -91,8 +83,6 @@ public class Locker {
         System.out.println("Del " + file.getName() + " " + password);
         Content c = new Content(file.getName(), password);
         contents.remove(encryptContent(c));
-        writeToLocker();
-
         close();
     }
 
@@ -104,8 +94,6 @@ public class Locker {
         } else {
             System.out.println("Doesn't exist");
         }
-
-        writeToLocker();
         close();
     }
 
@@ -117,7 +105,6 @@ public class Locker {
         content.setFileName(file.getName());
         content.setKey(newPassword);
         contents.set(index, encryptContent(content));
-        writeToLocker();
         close();
     }
 
@@ -131,39 +118,16 @@ public class Locker {
             SecretKey tmp = factory.generateSecret(spec);
             SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
 
-            byte[] K = secret.getEncoded();
+            byte[] key = secret.getEncoded();
 
             //  texto plano (P)
-            byte[] P;
+            byte[] input;
 
-            /**
-             * String pP; pP = "d9313225f88406e5a55909c5aff5269a" +
-             * "86a7a9531534f7da2e4c303d8a318a72" +
-             * "1c3c0c95956809532fcf0e2449a6b525" +
-             * "b16aedf5aa0de657ba637b391aafd255";
-             */
-            //= org.apache.commons.codec.binary.Hex.decodeHex(pP.toCharArray());
-            //  nonce (IV)
-            String pN;
-            pN = "cafebabefacedbaddecaf888";
-            byte[] N = org.apache.commons.codec.binary.Hex.decodeHex(pN.toCharArray());
+            String pN = Hex.toHexString(NONCE);
+            byte[] nonce = org.apache.commons.codec.binary.Hex.decodeHex(pN.toCharArray());
 
-            //  tag (T)
-            String T;
-            //= "b094dac5d93471bdec1a502270e3cc6c";
-
-            //  texto cifrado (C)
-            byte[] C;
-
-            /**
-             * String pC; pC = "522dc1f099567d07f47f37a32a84427d" +
-             * "643a8cdcbfe5c0c97598a2bd2555d1aa" +
-             * "8cb08e48590dbb3da7b08b1056828838" +
-             * "c5f61e6393ba7a0abcc9f662898015ad" + T;
-             */
-            //= org.apache.commons.codec.binary.Hex.decodeHex(pC.toCharArray());
             // Mensagem de entrada
-            P = c.getFileName().getBytes();
+            input = c.getFileName().getBytes();
 
             System.out.println("Msg = " + c.getFileName());
 
@@ -172,15 +136,15 @@ public class Locker {
             GCMBlockCipher gcm = new GCMBlockCipher(new AESEngine());
 
             // Parametros a serem passados para o GCM: chave, tamanho do mac, o nonce
-            KeyParameter key2 = new KeyParameter(K);
-            AEADParameters params = new AEADParameters(key2, MAC_SIZE, N);
+            KeyParameter key2 = new KeyParameter(key);
+            AEADParameters params = new AEADParameters(key2, MAC_SIZE, nonce);
 
             // true para cifrar
             gcm.init(true, params);
-            int outsize = gcm.getOutputSize(P.length);
+            int outsize = gcm.getOutputSize(input.length);
             byte[] outc = new byte[outsize];
             //processa os bytes calculando o offset para cifrar
-            int lengthOutc = gcm.processBytes(P, 0, P.length, outc, 0);
+            int lengthOutc = gcm.processBytes(input, 0, input.length, outc, 0);
 
             try {
                 //cifra os bytes
@@ -208,37 +172,9 @@ public class Locker {
             e.printStackTrace();
         }
         return c;
-
-        //System.out.println("Tag msg cifrada = " + Hex.toHexString(encT1));
-
-        // tampering step - mudando o texto cifrado para ver se eh detectado!
-        // A msg cifrada FOI MODIFICADA
-        //outc[11] ^= '0' ^ '9';
-
-        // DECIFRAR usando GCMBlockCipher
-        // false para decifrar
-
-
-        /**    gcm.init(false, params);
-
-         int outsize2 = gcm.getOutputSize(outc.length);
-         byte[] out2 = new byte[outsize2];
-         int offOut2 = gcm.processBytes(outc, 0, outc.length, out2, 0);
-
-         try {
-         gcm.doFinal(out2, offOut2);
-         String decifrado = new String(out2);
-         System.out.println("Msg decifrada = \t\t" + decifrado);
-         byte[] encT2 = gcm.getMac();
-         System.out.println("Tag msg cifrada modificada = \t" + org.bouncycastle.util.encoders.Hex.toHexString(encT2));
-
-         } catch (InvalidCipherTextException e) {
-         System.err.println("Erro de decifragem: " + e.getMessage());
-         //e.printStackTrace();
-         } */
     }
 
-    public static String encrypt(String key, String toEncrypt) throws Exception {
+    public static String encryptLocker(String key, String toEncrypt) throws Exception {
         Security.addProvider(new BouncyCastleProvider());
 
         PBEKeySpec keySpec = new PBEKeySpec(key.toCharArray(), SALT, 65536, MAC_SIZE);
@@ -251,7 +187,7 @@ public class Locker {
         return new String(encryptedValue);
     }
 
-    public static String decrypt(String key, String encrypted) throws Exception {
+    public static String decryptLocker(String key, String encrypted) throws Exception {
         Security.addProvider(new BouncyCastleProvider());
 
         PBEKeySpec keySpec = new PBEKeySpec(key.toCharArray(), SALT, 65536, MAC_SIZE);
@@ -266,25 +202,16 @@ public class Locker {
 
     private void close() {
         try {
-            byte[] inputBytes = Files.readAllBytes(lockerFile.toPath());
+            String content = mapper.writeValueAsString(contents.toArray());
             byte[] keyFile = Files.readAllBytes(lockerKey.toPath());
             String keyPlain = new String(keyFile, Charset.forName("UTF-8"));
             System.out.println(keyPlain);
-            String input = new String(inputBytes, Charset.forName("UTF-8"));
 
-            String encrypt = this.encrypt(keyPlain, input);
+            String encrypt = this.encryptLocker(keyPlain, content);
             FileOutputStream fileOutputStream = new FileOutputStream(lockerFile, false);
             fileOutputStream.write(encrypt.getBytes());
             fileOutputStream.close();
         } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void writeToLocker() {
-        try {
-            FileUtils.write(lockerFile, mapper.writeValueAsString(contents.toArray()), Charset.defaultCharset());
-        } catch (IOException e) {
             e.printStackTrace();
         }
     }
