@@ -14,6 +14,8 @@ public class Main {
 
     public static final String LOCKER_KEY = ".locker.key";
     public static final String LOCKER = ".locker";
+    public static final int PARALLELISM = 4;
+    public static final int MEMORY = 65536;
 
     public static void main(String[] args) {
         if (args.length != 3 && args.length != 4) {
@@ -25,7 +27,7 @@ public class Main {
 
 
         File userDirectory = FileUtils.getUserDirectory();
-        File lockerKey = new File(userDirectory.getPath() + "/" +LOCKER_KEY);
+        File lockerKey = new File(userDirectory.getPath() + "/" + LOCKER_KEY);
         File lockerFile = new File(userDirectory.getPath() + "/" + LOCKER);
         if (lockerFile.exists() && !lockerKey.exists()) {
             System.out.println("Theres a locker without a key");
@@ -48,7 +50,7 @@ public class Main {
 
         Locker locker = new Locker(args[1], args[2], lockerKey, lockerFile);
 
-        switch(args[0].toUpperCase()) {
+        switch (args[0].toUpperCase()) {
             case "ADD":
                 locker.add();
                 break;
@@ -80,18 +82,18 @@ public class Main {
         System.out.println("Insert a master password:");
         String secret = sc.nextLine();
 
+        System.out.println("Please wait, generating a new key");
+
         Argon2 argon2 = Argon2Factory.create();
-        int iterations = Argon2Helper.findIterations(argon2, 1000, 65536, 4);
+        int iterations = Argon2Helper.findIterations(argon2, 1000, MEMORY, PARALLELISM);
 
         char[] password = secret.toCharArray();
         String hash = "";
 
         try {
             // Hash password
-            for (int i = 0; i < iterations; i++) {
-                hash = argon2.hash(2, 65536, 4, password);
-                password = hash.toCharArray();
-            }
+            hash = argon2.hash(iterations, MEMORY, PARALLELISM, password);
+            password = hash.toCharArray();
         } finally {
             // Wipe confidential data
             argon2.wipeArray(password);

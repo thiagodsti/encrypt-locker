@@ -32,7 +32,7 @@ dependencies {
 }
 
 task execute(type:JavaExec) {
-    main = 'br.ufsc.chaveiro.Main'
+    main = 'br.ufsc.locker.Main'
     classpath = sourceSets.main.runtimeClasspath
 
     if ( project.hasProperty("customArgs") ) {

@@ -73,22 +73,22 @@ public class Locker {
     }
 
     public void add() {
-        System.out.println("Add " + file.getName() + " " + password);
-        Content c = new Content(file.getName(), password);
+        System.out.println("Add " + file.getAbsolutePath() + " " + password);
+        Content c = new Content(file.getAbsolutePath(), password);
         contents.add(encryptContent(c));
         close();
     }
 
     public void del() {
-        System.out.println("Del " + file.getName() + " " + password);
-        Content c = new Content(file.getName(), password);
+        System.out.println("Del " + file.getAbsolutePath() + " " + password);
+        Content c = new Content(file.getAbsolutePath(), password);
         contents.remove(encryptContent(c));
         close();
     }
 
     public void check() {
-        System.out.println("Check " + file.getName() + " " + password);
-        Content c = new Content(file.getName(), password);
+        System.out.println("Check " + file.getAbsolutePath() + " " + password);
+        Content c = new Content(file.getAbsolutePath(), password);
         if (contents.indexOf(this.encryptContent(c)) >= 0) {
             System.out.println("Exists");
         } else {
@@ -98,11 +98,11 @@ public class Locker {
     }
 
     public void update(String newPassword) {
-        System.out.println("Update " + file.getName() + " " + password + " " + newPassword );
-        Content c = new Content(file.getName(), password);
+        System.out.println("Update " + file.getAbsolutePath() + " " + password + " " + newPassword );
+        Content c = new Content(file.getAbsolutePath(), password);
         int index = contents.indexOf(this.encryptContent(c));
         Content content = contents.get(index);
-        content.setFileName(file.getName());
+        content.setFileName(file.getAbsolutePath());
         content.setKey(newPassword);
         contents.set(index, encryptContent(content));
         close();
